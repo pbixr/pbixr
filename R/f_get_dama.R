@@ -1,0 +1,41 @@
+#' @title Get 'DataMashup' from the Collection of Files Compressed in a '.pbix'
+#' @description The byte sequence of 'DataMashup' within a '.pbix' is retrieved.
+#' @author Don Diproto
+#' @param input_file_pbix Path of the input '.pbix'.
+#' @return 'DataMashup' within a '.pbix'.
+#' @export
+#' @seealso Uses: \code{\link{f_get_pbix_fir}}.
+#' @examples
+#' \dontrun{
+#' # Get dummy data ------------------------------------------------------------
+#' # Create a temporary directory
+#' temp_dir <- file.path(tempdir(),"functionTest")
+#' if(!dir.exists(temp_dir)) {
+#' 	dir.create(temp_dir)
+#' }
+#' sample_file_name <- "OR_sample_func.pbix"
+#' pathFileSample <- file.path(temp_dir, sample_file_name)
+#'
+#' # See if dummy data already exists in temporary directory
+#' parent_temp_dir <- dirname(temp_dir)
+#' existing_file <- list.files(parent_temp_dir,
+#' pattern = sample_file_name, recursive = TRUE, full.names = TRUE)
+#'
+#' # Download the sample .pbix if it doesn't exist
+#' if (length(existing_file) == 0) {
+#'    url_pt1 <- "https://github.com/KoenVerbeeck/PowerBI-Course/blob/"
+#'    url_pt2 <- "master/pbix/TopMovies.pbix?raw=true"
+#'    url <- paste0(url_pt1, url_pt2)
+#'    req <- download.file(url, destfile = pathFileSample, mode = "wb")
+#' } else {
+#'    pathFileSample <- existing_file[1]
+#' }
+#' # Do stuff ------------------------------------------------------------------
+#'
+#' # Run the function
+#' test <- f_get_dama(pathFileSample)
+#'   }
+f_get_dama <- function(input_file_pbix) {
+  buffer <- f_get_pbix_fir(input_file_pbix, "DataMashup")
+  return(buffer)
+}

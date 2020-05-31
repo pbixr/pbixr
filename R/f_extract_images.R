@@ -1,0 +1,80 @@
+#' @title Get an Image File from the Collection of Files Compressed in a '.pbix'
+#' @description The collection of files compressed in a '.pbix' is searched for
+#' images. An image is written to a temporary file. The path of the
+#' temporary file and associated properties are returned.
+#' @author Don Diproto
+#' @param input_file_pbix Path of the input '.pbix'.
+#' @param image_reg Pattern used to search for an image file stored in
+#' a collection of files compressed in '.pbix' (e.g., "[.]png|[.]jpg").
+#' @return A list: [[1]] a temporary location for an image, [[2]] the
+#' name, length (kb) and date associated with an image.
+#' @export
+#' @seealso Uses: \code{\link{f_get_pbix_info}},
+#' \code{\link{f_get_pbix_fir}}.
+#' @examples
+#' \dontrun{
+#' # Get dummy data ------------------------------------------------------------
+#' # Create a temporary directory
+#' temp_dir <- file.path(tempdir(),"functionTest")
+#' if(!dir.exists(temp_dir)) {
+#' 	dir.create(temp_dir)
+#' }
+#' sample_file_name <- "OR_sample_func.pbix"
+#' pathFileSample <- file.path(temp_dir, sample_file_name)
+#'
+#' # See if dummy data already exists in temporary directory
+#' parent_temp_dir <- dirname(temp_dir)
+#' existing_file <- list.files(parent_temp_dir,
+#' pattern = sample_file_name, recursive = TRUE, full.names = TRUE)
+#'
+#' # Download the sample .pbix if it doesn't exist
+#' if (length(existing_file) == 0) {
+#'    url_pt1 <- "https://github.com/KoenVerbeeck/PowerBI-Course/blob/"
+#'    url_pt2 <- "master/pbix/TopMovies.pbix?raw=true"
+#'    url <- paste0(url_pt1, url_pt2)
+#'    req <- download.file(url, destfile = pathFileSample, mode = "wb")
+#' } else {
+#'    pathFileSample <- existing_file[1]
+#' }
+#' # Do stuff ------------------------------------------------------------------
+#'
+#' image_reg <- "[.]png|[.]jpg"
+#' # Run the function
+#' test <- f_extract_images(pathFileSample, image_reg)
+#' # Plot the image
+#' im <- imager::load.image(test[[1]])
+#' plot(im)
+#'   }
+f_extract_images <- function(input_file_pbix, image_reg) {
+  # Collection of files compressed in .pbix are identified.
+  get_pbix_info <- f_get_pbix_info(input_file_pbix)
+  # A search for images is performed
+  image_index <- grep(image_reg, get_pbix_info$Name)
+  if (length(image_index) == 0) {
+    # If an image does not exist
+    output <- list(NULL, NULL)
+  } else {
+    # If an image exists
+    image_info <- get_pbix_info[image_index, ]
+    image_extension <- gsub(".*[.]", "", image_info$Name)
+
+    # Write image to temporary file
+    file_images <- c()
+    for (image_i in seq_len(nrow(image_info))) {
+      buffer <- f_get_pbix_fir(input_file_pbix, image_info$Name[image_i])
+      temp_file <- tempfile()
+
+      zz <- file(temp_file, "wb")
+      writeBin(buffer, zz)
+      close(zz)
+
+      new_temp_file <- paste0(temp_file, ".", image_extension[image_i])
+      file.rename(temp_file, new_temp_file)
+      temp_file <- new_temp_file
+      file_images[image_i] <- temp_file
+    }
+
+    output <- list(file_images, image_info)
+  }
+  return(output)
+}
