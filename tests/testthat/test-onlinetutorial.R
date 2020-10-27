@@ -171,7 +171,8 @@
 #  expect_equal(file.exists(path_file_sample_modified), TRUE)
 #})
 #
-#test_that("f_get_connections", {
+#test_that("f_query_datamodel_1", {
+#  # This also tests f_get_connections.
 #  connections_open <- f_get_connections() %>%
 #    mutate(pbix = gsub(" - Power BI Desktop", "", pbix_name)) %>%
 #    filter(pbix == gsub("[.]pbix", "", basename(path_file_sample)))
@@ -180,18 +181,132 @@
 #    "Provider=MSOLAP.8;Data Source=localhost:",
 #    correct_port, ";MDX Compatibility=1"
 #  )
-#  # Expression to get the DAX queries
-#  sql_measures <- paste0(
-#    "select MEASURE_NAME, EXPRESSION, MEASUREGROUP_NAME",
-#    " from $SYSTEM.MDSCHEMA_MEASURES"
-#  )
-#  # Query the analysis service
-#  get_dax <- f_query_datamodel(sql_measures, connection_db)
-#  # Display a result
-#  t_data <- t(tail(get_dax, 1))
-#  colnames(t_data) <- NULL
+#  queryPowerBI <- "evaluate TopMovies"
+#  getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
 #
-#  expect_equal(t_data[1], "imdbVotes running total in Title")
+#  expect_equal(getQueryPowerBIData[1,2], "The Shawshank Redemption")
+#})
+#
+#test_that("f_query_datamodel_2", {
+#  # This also tests f_get_connections.
+#  connections_open <- f_get_connections() %>%
+#    mutate(pbix = gsub(" - Power BI Desktop", "", pbix_name)) %>%
+#    filter(pbix == gsub("[.]pbix", "", basename(path_file_sample)))
+#  correct_port <- as.numeric(connections_open$ports)
+#  connection_db <- paste0(
+#    "Provider=MSOLAP.8;Data Source=localhost:",
+#    correct_port, ";MDX Compatibility=1"
+#  )
+#  # Escape dollar sign so that it can run via PowerShell
+#  queryPowerBI <- paste0("select MEASURE_NAME, EXPRESSION, MEASUREGROUP_NAME ",
+#                    "from `$SYSTEM.MDSCHEMA_MEASURES")
+#  getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+#
+#  expect_equal(getQueryPowerBIData[2,3], "TopMovies")
+#})
+#
+#test_that("f_query_datamodel_3", {
+#  # This also tests f_get_connections.
+#  connections_open <- f_get_connections() %>%
+#    mutate(pbix = gsub(" - Power BI Desktop", "", pbix_name)) %>%
+#    filter(pbix == gsub("[.]pbix", "", basename(path_file_sample)))
+#  correct_port <- as.numeric(connections_open$ports)
+#  connection_db <- paste0(
+#    "Provider=MSOLAP.8;Data Source=localhost:",
+#    correct_port, ";MDX Compatibility=1"
+#  )
+#  # Escape double quotes so that it can run via PowerShell
+#  queryPowerBI <- paste0("evaluate(summarizecolumns('TopMovies'[Rank],",
+#                    "'TopMovies'[Title],\\\"\\\"Value\\\"\\\",",
+#                    "TopMovies[Avg Metascore]))")
+#  getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+#
+#  expect_equal(getQueryPowerBIData[6,2], "Pulp Fiction")
+#})
+#
+#test_that("f_query_datamodel_4", {
+#  # This also tests f_get_connections.
+#  connections_open <- f_get_connections() %>%
+#    mutate(pbix = gsub(" - Power BI Desktop", "", pbix_name)) %>%
+#    filter(pbix == gsub("[.]pbix", "", basename(path_file_sample)))
+#  correct_port <- as.numeric(connections_open$ports)
+#  connection_db <- paste0(
+#    "Provider=MSOLAP.8;Data Source=localhost:",
+#    correct_port, ";MDX Compatibility=1"
+#  )
+#  # Return a list of data.frames
+#	queryPowerBI <- paste0(
+#	  "DEFINE ",
+#	  "VAR test_average = CALCULATE(AVERAGE('TopMovies'[imdbRating])) ",
+#	  "VAR test_median = CALCULATE(MEDIAN('TopMovies'[imdbRating])) ",
+#	  "EVALUATE ",
+#	  "  ROW( ",
+#	  "    \\\"\\\"MinRuntime\\\"\\\", CALCULATE(MIN('TopMovies'[Runtime])),",
+#	  "    \\\"\\\"MaxRuntime\\\"\\\", CALCULATE(MAX('TopMovies'[Runtime])),",
+#	  "    \\\"\\\"average\\\"\\\", test_average) ",
+#	  "EVALUATE ",
+#	  "  ROW(",
+#	  "    \\\"\\\"MinRuntime\\\"\\\", CALCULATE(MIN('TopMovies'[Runtime])),",
+#	  "    \\\"\\\"MaxRuntime\\\"\\\", CALCULATE(MAX('TopMovies'[Runtime])),",
+#	  "    \\\"\\\"median\\\"\\\", test_median)"
+#	)
+#	getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+#
+#  expect_equal(getQueryPowerBIData[[2]][1,1], 67)
+#})
+#
+#test_that("f_query_datamodel_5", {
+#  # This also tests f_get_connections.
+#  connections_open <- f_get_connections() %>%
+#    mutate(pbix = gsub(" - Power BI Desktop", "", pbix_name)) %>%
+#    filter(pbix == gsub("[.]pbix", "", basename(path_file_sample)))
+#  correct_port <- as.numeric(connections_open$ports)
+#  connection_db <- paste0(
+#    "Provider=MSOLAP.8;Data Source=localhost:",
+#    correct_port, ";MDX Compatibility=1"
+#  )
+#	# Use single quotes when white space occurs in table name
+#	queryPowerBI <- "evaluate 'Genre Bridge'"
+#	getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+#
+#  expect_equal(getQueryPowerBIData[1,2], "Drama")
+#})
+#
+#test_that("f_query_datamodel_6", {
+#  # This also tests f_get_connections.
+#  connections_open <- f_get_connections() %>%
+#    mutate(pbix = gsub(" - Power BI Desktop", "", pbix_name)) %>%
+#    filter(pbix == gsub("[.]pbix", "", basename(path_file_sample)))
+#  correct_port <- as.numeric(connections_open$ports)
+#  connection_db <- paste0(
+#    "Provider=MSOLAP.8;Data Source=localhost:",
+#    correct_port, ";MDX Compatibility=1"
+#  )
+#	# Statement that won't work
+#	queryPowerBI <- "hello, world"
+#	getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+#
+#  expect_equal(getQueryPowerBIData[[1]], NULL)
+#})
+#
+#test_that("f_query_datamodel_7", {
+#  # This also tests f_get_connections.
+#  connections_open <- f_get_connections() %>%
+#    mutate(pbix = gsub(" - Power BI Desktop", "", pbix_name)) %>%
+#    filter(pbix == gsub("[.]pbix", "", basename(path_file_sample)))
+#  correct_port <- as.numeric(connections_open$ports)
+#  connection_db <- paste0(
+#    "Provider=MSOLAP.8;Data Source=localhost:",
+#    correct_port, ";MDX Compatibility=1"
+#  )
+#	# Another MDX statment
+#	queryPowerBI <- paste0("select top 5 [MEMBER_NAME] from ",
+#  "`$System.MDSCHEMA_MEMBERS where [CUBE_NAME]='Model' and ",
+#  "[LEVEL_UNIQUE_NAME]='[TopMovies].[Title].[Title]'"
+#  )
+#	getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+#
+#  expect_equal(getQueryPowerBIData[5,1], "12 Angry Men")
 #})
 #
 #test_that("f_search_xml", {

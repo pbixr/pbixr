@@ -1,7 +1,7 @@
 ---
 title: "Access Data and Metadata from 'Microsoft' 'Power BI' Documents"
 author: "Don Diproto"
-date: "16/5/2020"
+date: "21/10/2020"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Access Data and Metadata from 'Microsoft' 'Power BI' Documents}
@@ -11,7 +11,7 @@ vignette: >
 
 
 
-The 'pbixr' package enables one to access data and metadata from ['Microsoft' 'Power BI'](https://web.archive.org/web/20191225013754/https://powerbi.microsoft.com/en-us/why-power-bi/) documents: 'Power Query M' formulas and 'Data Analysis Expressions' ('DAX') queries and their properties, report layout and style, and data and data models.
+The 'pbixr' package enables one to extract 'Power Query M' formulas (<https://docs.microsoft.com/en-us/power-query/>) 'Data Analysis Expressions' queries ('DAX', <https://docs.microsoft.com/en-us/dax/>) and their properties, report layout and style, and data and data models.
 
 'Microsoft' 'Power BI' is a big deal -- more than 200,000 organisations in 205 countries were reported as using it in [February 16, 2017](https://web.archive.org/web/20170906094058/https://powerbi.microsoft.com/en-us/blog/gartner-positions-microsoft-as-a-leader-in-bi-and-analytics-platforms-for-ten-consecutive-years/).
 
@@ -41,6 +41,7 @@ suppressMessages(library(ggraph))
 suppressMessages(library(igraph))
 suppressMessages(library(imager))
 suppressMessages(library(tidyr))
+suppressMessages(library(formatR))
 ```
 
 
@@ -52,39 +53,58 @@ if (!dir.exists(temp_dir)) {
 sample_file_name <- "sample_vig.pbix"
 path_file_sample <- file.path(temp_dir, sample_file_name)
 parent_temp_dir <- dirname(temp_dir)
-existing_file <- list.files(parent_temp_dir, pattern = sample_file_name, recursive = TRUE, 
-    full.names = TRUE)
+existing_file <- list.files(parent_temp_dir,
+pattern = sample_file_name, recursive = TRUE, full.names = TRUE)
 if (length(existing_file) == 0) {
-    url_pt1 <- "https://github.com/KoenVerbeeck/PowerBI-Course/blob/"
-    url_pt2 <- "master/pbix/TopMovies.pbix?raw=true"
-    url <- paste0(url_pt1, url_pt2)
-    req <- download.file(url, destfile = path_file_sample, mode = "wb")
+   url_pt1 <- "https://github.com/KoenVerbeeck/PowerBI-Course/blob/"
+   url_pt2 <- "master/pbix/TopMovies.pbix?raw=true"
+   url <- paste0(url_pt1, url_pt2)
+   req <- download.file(url, destfile = path_file_sample, mode = "wb")
 } else {
-    path_file_sample <- existing_file[1]
+   path_file_sample <- existing_file[1]
 }
 
 # Licence ----------------------------------------------------------------------
 # Licence associated with the sample .pbix file
 
-# MIT License Copyright (c) 2017 KoenVerbeeck Permission is hereby granted, free
-# of charge, to any person obtaining a copy of this software and associated
-# documentation files (the 'Software'), to deal in the Software without
-# restriction, including without limitation the rights to use, copy, modify,
-# merge, publish, distribute, sublicense, and/or sell copies of the Software, and
-# to permit persons to whom the Software is furnished to do so, subject to the
-# following conditions: The above copyright notice and this permission notice
-# shall be included in all copies or substantial portions of the Software.  THE
-# SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
-# INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-# PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-# IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+# MIT License
+#
+# Copyright (c) 2017 KoenVerbeeck
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 ```
 
 # Analysis
 
-Several types of questions were explored with `pbixr`.
+Two broad areas of the sample were explored with `pbixr`:
+
+* metadata
+
+  * sample contents, including images and embedded images
+
+  * queries, including Power Query M formulas and DAX, and associated characteristics
+
+  * sample layout, including position of visual containers, report names and filters
+
+* data
+
+  * executing DAX and MDX queries to gather data from the sample and understand the data model
 
 ## Metadata
 
@@ -100,8 +120,9 @@ pbi_content <- f_get_pbix_info(input_pbix)
 pbi_content_names <- pbi_content$Name
 # Identify exentsions
 pbi_content_types <- unique(tools::file_ext(pbi_content_names))
-# Show content Make the size look pretty
-biggest_file <- max(pbi_content$Length)
+# Show content
+# Make the size look pretty
+biggest_file <- max(as.numeric(gsub("[^0-9]*","",pbi_content$Length)))
 pbi_content$Length <- prettyNum(pbi_content$Length, big.mark = ",")
 knitr::kable(pbi_content)
 ```
@@ -141,16 +162,18 @@ The format of some these files was not easily identifiable because they didn't h
 
 ```r
 # Search only for .png files
-image_reg <- "[.]png"
+  image_reg <- "[.]png"
 # Get the images
-image_information <- f_extract_images(input_pbix, image_reg)
-image_name <- gsub(".*/", "", image_information[[2]]$Name)
+  image_information <- f_extract_images(input_pbix, image_reg)
+  image_name <- gsub(".*/", "", image_information[[2]]$Name)
 # Plot the first image
-im <- imager::load.image(image_information[[1]])
-plot(im, main = image_name)
+  im <- imager::load.image(image_information[[1]])
+  plot(im, main = image_name)
 ```
 
 ![](zzpublic_imageSearch-1.png)
+
+In this case, there was an image that was white.
 
 ### What did an image embedded in a .css file in the sample look like?
 
@@ -158,42 +181,47 @@ The sample included custom visuals, one of which contained an image. `f_get_pbix
 
 
 ```r
-# Get the byte sequence of a first-level file.  The string is too long to fit
-# nicely for this vignette so I will break it and paste it together.
-variable_pt1 <- "Report/CustomVisuals/PBI_CV_9053509D_D461_463A_B485_"
-variable_pt2 <- "CE9F6AB0F13C/resources/PBI_CV_9053509D_D461_463A_B485"
-variable_pt3 <- "_CE9F6AB0F13C.pbiviz.json"
-variable <- paste0(variable_pt1, variable_pt2, variable_pt3)
-raw_img_viewer_visual <- f_get_pbix_fir(path_file_sample, variable)
+# Get the byte sequence of a first-level file.
+# The string is too long to fit nicely for this vignette so I will break it
+# and paste it together.
+  variable_pt1 <- "Report/CustomVisuals/PBI_CV_9053509D_D461_463A_B485_"
+  variable_pt2 <- "CE9F6AB0F13C/resources/PBI_CV_9053509D_D461_463A_B485"
+  variable_pt3 <- "_CE9F6AB0F13C.pbiviz.json"
+  variable <- paste0(variable_pt1, variable_pt2, variable_pt3)
+  raw_img_viewer_visual <- f_get_pbix_fir(path_file_sample, variable)
 
 # Write to a temporary file
-temp_file_2 <- file.path(tempdir(), "pbiviz_1")
-zz <- file(temp_file_2, "wb")
-writeBin(raw_img_viewer_visual, zz)
-close(zz)
+  temp_file_2 <- file.path(tempdir(), "pbiviz_1")
+  zz <- file(temp_file_2, "wb")
+  writeBin(raw_img_viewer_visual, zz)
+  close(zz)
 
 # Read temporary file back in
-char_img_viewer_visual <- readLines(temp_file_2, warn = FALSE)
+  char_img_viewer_visual <- readLines(temp_file_2, warn =  FALSE)
 
 # Get image data from the relvant line
-image_img_viewer_visual <- gsub(");}", "", gsub(".*data:image/png;base64,", "", grep("data:image", 
-    char_img_viewer_visual, value = TRUE)))
+  image_img_viewer_visual <- gsub(");}", "",
+  gsub(".*data:image/png;base64,",
+  "", grep("data:image", char_img_viewer_visual, value = TRUE)))
 
 # Decode
-raw_image_img_viewer_visual <- RCurl::base64Decode(image_img_viewer_visual, mode = "raw")
+  raw_image_img_viewer_visual <- RCurl::base64Decode(image_img_viewer_visual,
+  mode = "raw")
 
 # Write to a temporary file
-temp_file_3 <- file.path(tempdir(), "pbiviz_2.png")
-zz <- file(temp_file_3, "wb")
-writeBin(raw_image_img_viewer_visual, zz)
-close(zz)
+  temp_file_3 <- file.path(tempdir(), "pbiviz_2.png")
+  zz <- file(temp_file_3, "wb")
+  writeBin(raw_image_img_viewer_visual, zz)
+  close(zz)
 
-# Plot Get the name of custom visual for the main title
-plot_title <- paste0("Visual: '", gsub(".*:\"", "", gsub("\", \"displayName.*", "", 
-    char_img_viewer_visual)), "'")
-# Load the image and create the plot
-load_image_img_viewer_visual <- imager::load.image(temp_file_3)
-plot(load_image_img_viewer_visual, main = plot_title)
+# Plot
+  # Get the name of custom visual for the main title
+    plot_title <- paste0("Visual: '",
+    gsub(".*:\"", "",
+    gsub("\", \"displayName.*", "", char_img_viewer_visual)), "'")
+  # Load the image and create the plot
+    load_image_img_viewer_visual <- imager::load.image(temp_file_3)
+    plot(load_image_img_viewer_visual, main = plot_title)
 ```
 
 ![](zzpublic_cssimage-1.png)
@@ -205,11 +233,9 @@ plot(load_image_img_viewer_visual, main = plot_title)
 
 ```r
 # Get the query
-m_query <- f_get_dama_m(input_pbix)
-#> Error in f_get_dama_m(input_pbix): argument "remove_temp" is missing, with no default
+m_query <- f_get_dama_m(input_pbix, remove_temp = TRUE)
 # Show the first ten lines of the query
 top_m <- paste0(head(m_query, 10), "\n")
-#> Error in head(m_query, 10): object 'm_query' not found
 ```
 
 The first ten steps of one of the Power Query M formulas looked like this:
@@ -217,7 +243,16 @@ The first ten steps of one of the Power Query M formulas looked like this:
 
 ```r
 cat(top_m)
-#> Error in cat(top_m): object 'top_m' not found
+#> section Section1;
+#>  
+#>  shared TopMovies = let
+#>      Source = Excel.Workbook(File.Contents("D:\SQLServer_Community\Power BI Open Source Training\Top250Movies.xlsx"), null, true),
+#>      MovieList_Sheet = Source{[Item="MovieList",Kind="Sheet"]}[Data],
+#>      #"Changed Type" = Table.TransformColumnTypes(MovieList_Sheet,{{"Column1", type text}}),
+#>      #"Promoted Headers" = Table.PromoteHeaders(#"Changed Type", [PromoteAllScalars=true]),
+#>      #"Split on Point" = Table.SplitColumn(#"Promoted Headers","Movies",Splitter.SplitTextByEachDelimiter({"."}, QuoteStyle.Csv, false),{"Rank", "Title"}),
+#>      #"Changed Type1" = Table.TransformColumnTypes(#"Split on Point",{{"Rank", Int64.Type}, {"Title", type text}}),
+#>      #"Trimmed Text" = Table.TransformColumns(#"Changed Type1",{{"Title", Text.Trim}}),
 ```
 
 The 'DataMashup' file also included an .xml file, which contained metadata associated with the Power Query M formulas. `f_get_dama`, `f_get_dama_index`, `f_get_dama_file`,  `f_get_dama_xml_details` and `f_get_dama_xml` were used to access the .xml file in the DataMashup file and `f_get_dama_xml_data` was used to get the metadata of the Power Query M formulas.
@@ -226,9 +261,9 @@ The 'DataMashup' file also included an .xml file, which contained metadata assoc
 ```r
 # Get details of .xml files included in the DataMashup file
 xml_details <- f_get_dama_xml_details(input_pbix)
-# Identify the start and end bytes of the .xml file we want from the DataMashup
-# file
-xml_start <- (xml_details[[1]][1]/2) + 1
+# Identify the start and end bytes of the .xml file we want from the
+# DataMashup file
+xml_start <- (xml_details[[1]][1] / 2) + 1
 xml_end <- xml_details[[3]][1]
 # Get the desired .xml file from DataMashup file
 input_xml <- f_get_dama_xml(input_pbix, xml_start, xml_end)
@@ -260,7 +295,8 @@ knitr::kable(get_xml_data[[1]])
 
 ```r
 # Show content of first query
-show_first_query <- get_xml_data[[2]] %>% filter(query == "Section1/Actors%20Bridge")
+show_first_query <- get_xml_data[[2]] %>%
+  filter(query == "Section1/Actors%20Bridge")
 knitr::kable(show_first_query)
 ```
 
@@ -283,8 +319,8 @@ knitr::kable(show_first_query)
 
 ```r
 # Show content of first query
-knitr::kable(data.frame(step = grep("Section1/Actors%20Bridge", get_xml_data[[3]], 
-    value = TRUE)))
+knitr::kable(data.frame(step =
+grep("Section1/Actors%20Bridge", get_xml_data[[3]], value = TRUE)))
 ```
 
 
@@ -323,52 +359,54 @@ This issue was investigated by unzipping the sample and opening 'Layout' in a te
 ```r
 computer_name <- get_layout$sections$name
 human_name <- get_layout$sections$displayName
-names <- data.frame(computer_name = computer_name, human_name = human_name)
-names
-#>     computer_name
-#> 1   ReportSection
-#> 2  ReportSection2
-#> 3  ReportSection1
-#> 4  ReportSection3
-#> 5  ReportSection5
-#> 6  ReportSection4
-#> 7  ReportSection6
-#> 8  ReportSection9
-#> 9  ReportSection7
-#> 10 ReportSection8
-#>                  human_name
-#> 1         OverviewTopMovies
-#> 2           AnalysisByGenre
-#> 3           AnalysisByRated
-#> 4                Clustering
-#> 5                TimeSlicer
-#> 6  Grouping,CondForm&others
-#> 7                   Binning
-#> 8      Numericslicer+Matrix
-#> 9                       DAX
-#> 10            QuickMeasures
+reportNames <- data.frame(computer_name = computer_name,
+human_name = human_name)
+knitr::kable(reportNames)
 ```
 
+
+
+|computer_name  |human_name               |
+|:--------------|:------------------------|
+|ReportSection  |OverviewTopMovies        |
+|ReportSection2 |AnalysisByGenre          |
+|ReportSection1 |AnalysisByRated          |
+|ReportSection3 |Clustering               |
+|ReportSection5 |TimeSlicer               |
+|ReportSection4 |Grouping,CondForm&others |
+|ReportSection6 |Binning                  |
+|ReportSection9 |Numericslicer+Matrix     |
+|ReportSection7 |DAX                      |
+|ReportSection8 |QuickMeasures            |
+Note that the human readable names of a report identified in the table above didn't include white spaces. When viewed in 'Power BI', for example, the first report was called 'Overview Top Movies' not 'OverviewTopMovies'.
+
 ### Which reports included filters in the sample?
+
+This code was used to identify filters affecting a visual.
 
 
 ```r
 json_sect <- get_layout$sections
 visual_containers <- json_sect$visualContainers
-filter_index <- which(unlist(lapply(lapply(lapply(visual_containers, function(x) colnames(x)), 
-    function(z) grep("filters", z)), length)) > 0)
+filter_index <- which(unlist(lapply(lapply(lapply(visual_containers,
+function(x)colnames(x)), function(z) grep("filters", z)), length)) > 0)
 json_sect$displayName[filter_index]
 #> [1] "AnalysisByGenre"         
 #> [2] "Grouping,CondForm&others"
 ```
 
+On the 'Analysis By Genre' report, for example, 'Music ('Genre')' was exlcuded from the 'Count of Title By Genre' visual.
+
 ### Where were all the visual containers positioned in the first report of the sample?
+
+This code was used to show the top left corner of each visual container on a report.
 
 
 ```r
 contain_df <- visual_containers[[1]]
-plot(contain_df$x, contain_df$y * -1, main = paste0("Sheet: ", as.character(names[3, 
-    2])), sub = "Top-left corner of box", pch = 3)
+plot(contain_df$x, contain_df$y * -1,
+main = paste0("Sheet: ", as.character(names[3, 2])),
+sub = "Top-left corner of box", pch = 3)
 ```
 
 ![](zzpublic_checkFirstPage-1.png)
@@ -452,104 +490,568 @@ Given that data wasn't identified elsewhere, 'DataModel' was the likely place th
 The file started with `STREAM_STORAGE_SIGNATURE_)!@#$%^&*", which was consistent with a [[MS-XLDM]: Spreadsheet Data Model File Format](https://docs.microsoft.com/en-us/openspecs/office_file_formats/ms-xldm/8c62e8ce-f605-488d-81e9-4ecdb7686a52).
 
 `pbixr` did not include a function to get data by reading 'DataModel'. However, it did include a function, `f_query_datamodel`, to access data via a local instance of 'Microsoft' 'Analysis Services'. `f_get_connections` was used to identify the port of the 'Analysis Services' connection. [This document](https://web.archive.org/web/20180819200620/http://biinsight.com/connect-to-power-bi-desktop-model-from-excel-and-ssms/) was considered helpful.
-`f_query_datamodel` and `f_get_connections` required ['Microsoft' 'PowerShell'](https://en.wikipedia.org/wiki/PowerShell).
+`f_query_datamodel` and `f_get_connections` required ['Microsoft' 'PowerShell'](https://en.wikipedia.org/wiki/PowerShell). `f_query_datamodel` could be used to send 'DAX' and 'Multidimensional Expressions' queries (['MDX'](https://docs.microsoft.com/en-us/analysis-services/multidimensional-models/mdx/mdx-query-the-basic-query)).
+
+Two string-escape issues required consideration when sending a query via 'PowerShell':
+
+1. Dollar signs were escaped with a backtick (i.e. '\$' becomes '\`\$')
+
+2. Double quotes were escaped with three backslashes and a double quote (i.e. '"' becomes '\\\\\\"').
+
+As a result, subtle differences could be observed between queries sent from `pbixr` and other software, like 'DaxStudio'.
 
 ### What DAX formulas were used in the sample?
 
+A MDX query was executed to bring back a table holding DAX measure formulas.
+
+
 ```r
-connections_open <- f_get_connections() %>% mutate(pbix = gsub(" \\[Read-Only\\]", 
-    "", gsub(" - Power BI Desktop", "", pbix_name))) %>% filter(pbix == gsub("[.]pbix", 
-    "", basename(path_file_sample)))
+connections_open <- f_get_connections()
 correct_port <- as.numeric(connections_open$ports[1])
-connection_db <- paste0("Provider=MSOLAP.8;Data Source=localhost:", correct_port, 
-    ";MDX Compatibility=1")
+connection_db <- paste0("Provider=MSOLAP.8;Data Source=localhost:",
+correct_port, ";MDX Compatibility=1")
 # Expression to get the DAX queries
-sql_measures <- paste0("select MEASURE_NAME, EXPRESSION, MEASUREGROUP_NAME ", "from $SYSTEM.MDSCHEMA_MEASURES")
+# Note the backtick before the dollar sign. This was
+# added to escape the dollar sign in PowerShell.
+sql_measures <- paste0("select MEASURE_NAME, EXPRESSION, MEASUREGROUP_NAME ",
+"from `$SYSTEM.MDSCHEMA_MEASURES")
 # Query the analysis service
 get_dax <- f_query_datamodel(sql_measures, connection_db)
-# Display a result
+# Display a result sample
 t_data <- t(tail(get_dax, 1))
-colnames(t_data) <- NULL
-# To improve display of the DAX with kable, I removed new lines and tabs that
-# occured in the DAX
-knitr::kable(trimws(gsub("\\t", "", gsub("\\n", "", t_data))))
-#> Warning in kable_markdown(x
-#> = structure(c("MEASURE_NAME",
-#> "EXPRESSION", : The table should have
-#> a header (column names)
+colnames(t_data) <- "value"
+# To improve display of the DAX with kable, I removed new lines and
+# tabs that occured in the DAX
+knitr::kable(trimws(gsub("\\t", "", gsub("\\n", "", t_data))), )
 ```
 
 
 
-|                  |                                                                                                                                                                                                                                                                     |
+|                  |value                                                                                                                                                                                                                                                                |
 |:-----------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |MEASURE_NAME      |imdbVotes running total in Title                                                                                                                                                                                                                                     |
 |EXPRESSION        |CALCULATE(SUM('TopMovies'[imdbVotes]),FILTER(CALCULATETABLE(SUMMARIZE('TopMovies', 'TopMovies'[Rank], 'TopMovies'[Title]),ALLSELECTED('TopMovies')),ISONORAFTER('TopMovies'[Rank], MAX('TopMovies'[Rank]), DESC,'TopMovies'[Title], MAX('TopMovies'[Title]), DESC))) |
 |MEASUREGROUP_NAME |TopMovies                                                                                                                                                                                                                                                            |
 
-### How were the tables linked in the sample?
+The query above did not include all DAX in the sample. To get more DAX, including
+DAX for calculated tables, a different query was used.
+
+
+```r
+sql_measures <- paste0("SELECT * From `$SYSTEM.DISCOVER_CALC_DEPENDENCY")
+# Query the analysis service
+# For presentation, I have chosen a few columns and rows
+get_allDax <- f_query_datamodel(sql_measures, connection_db) %>%
+  select(OBJECT_TYPE, OBJECT, EXPRESSION) %>%
+  group_by(OBJECT_TYPE) %>%
+  filter(!grepl("-", OBJECT)) %>%
+  filter(nchar(EXPRESSION) > 2) %>%
+  unique() %>%
+  slice(1) %>%
+  ungroup()
+# The second row is a CALC_TABLE, which didn't print nicely
+# with kable
+get_allDax %>%
+  slice(1,3,4) %>%
+  kable
+```
+
+
+
+|OBJECT_TYPE  |OBJECT       |EXPRESSION                       |
+|:------------|:------------|:--------------------------------|
+|CALC_COLUMN  |Year         |YEAR([Date])                     |
+|MEASURE      |Avg Rating   |AVERAGE('TopMovies'[imdbRating]) |
+|ROWS_ALLOWED |Germany Only |[Country] = "Germany"            |
+
+### What DAX queries were triggered after data were filtered in a report?
+
+The first report, 'Overview Top Movies', contained a slicer, movie title,
+which triggered several queries. These queries were identified in a trace. A few websites provided some hints on using 'SQL Server Profiler' to record interactions with 'Power BI' ([crossjoin](https://web.archive.org/web/20200426021721/https://blog.crossjoin.co.uk/2020/03/02/connecting-sql-server-profiler-to-power-bi-premium/) and [kasperonbi](https://web.archive.org/web/20190811124052/https://www.kasperonbi.com/how-to-turn-on-ssas-profiler-traces-in-power-bi-desktop/)).
+
+Once the trace was initiated in 'SQL Server Profiler', 'The Godfather' was selected  in the dropdown of the first report ('Overview Top Movies') in 'Power BI'. This triggered a series of events to update the results in the report so that they were related to 'The Godfather'. The queries underpinning these events were collected in the trace. The queries were extracted to file by switching to 'SQL Server Profiler' and selecting File > Export > Extract SQL Server Analysis Services Events > Extract All Queries. The output looked like this:
+
+```
+DEFINE VAR __DS0FilterTable =
+  TREATAS({"The Godfather"}, 'TopMovies'[Title])
+
+EVALUATE
+  TOPN(
+    1002,
+    CALCULATETABLE(
+      DISTINCT('TopMovies'[Poster]),
+      KEEPFILTERS(__DS0FilterTable)
+    ),
+    'TopMovies'[Poster],
+    1
+  )
+
+ORDER BY
+  'TopMovies'[Poster]
+DEFINE VAR __DS0FilterTable =
+  TREATAS({"The Godfather"}, 'TopMovies'[Title])
+
+EVALUATE
+  SUMMARIZECOLUMNS(
+    __DS0FilterTable,
+    "SumRank", IGNORE(CALCULATE(SUM('TopMovies'[Rank])))
+  )
+DEFINE VAR __DS0FilterTable =
+  TREATAS({"The Godfather"}, 'TopMovies'[Title])
+
+EVALUATE
+  TOPN(
+    101,
+    CALCULATETABLE(
+      SUMMARIZE('TopMovies', 'TopMovies'[Released], 'TopMovies'[Rated]),
+      KEEPFILTERS(__DS0FilterTable)
+    ),
+    'TopMovies'[Released],
+    1,
+    'TopMovies'[Rated],
+    1
+  )
+
+ORDER BY
+  'TopMovies'[Released], 'TopMovies'[Rated]
+DEFINE VAR __DS0FilterTable =
+  TREATAS({"The Godfather"}, 'TopMovies'[Title])
+
+EVALUATE
+  SUMMARIZECOLUMNS(
+    __DS0FilterTable,
+    "SumIMDBRating_Star", IGNORE(CALCULATE(SUM('TopMovies'[IMDBRating_Star])))
+  )
+DEFINE VAR __DS0FilterTable =
+  TREATAS({"The Godfather"}, 'TopMovies'[Title])
+
+EVALUATE
+  SUMMARIZECOLUMNS(
+    __DS0FilterTable,
+    "SumimdbVotes", IGNORE(CALCULATE(SUM('TopMovies'[imdbVotes]))),
+    "SumRuntime", IGNORE(CALCULATE(SUM('TopMovies'[Runtime])))
+  )
+DEFINE VAR __DS0FilterTable =
+  TREATAS({"The Godfather"}, 'TopMovies'[Title])
+
+EVALUATE
+  SUMMARIZECOLUMNS(
+    __DS0FilterTable,
+    "SumMetascore_Star", IGNORE(CALCULATE(SUM('TopMovies'[Metascore_Star])))
+  )
+DEFINE VAR __DS0FilterTable =
+  TREATAS({"The Godfather"}, 'TopMovies'[Title])
+
+EVALUATE
+  TOPN(
+    101,
+    CALCULATETABLE(
+      SUMMARIZE('TopMovies', 'TopMovies'[Title], 'TopMovies'[Rank]),
+      KEEPFILTERS(__DS0FilterTable)
+    ),
+    'TopMovies'[Rank],
+    1,
+    'TopMovies'[Title],
+    1
+  )
+
+ORDER BY
+  'TopMovies'[Rank], 'TopMovies'[Title]
+DEFINE VAR __DS0FilterTable =
+  TREATAS({"The Godfather"}, 'TopMovies'[Title])
+
+EVALUATE
+  TOPN(
+    1002,
+    CALCULATETABLE(
+      DISTINCT('TopMovies'[Plot]),
+      KEEPFILTERS(__DS0FilterTable)
+    ),
+    'TopMovies'[Plot],
+    1
+  )
+
+ORDER BY
+  'TopMovies'[Plot]
+DEFINE VAR __DS0FilterTable =
+  TREATAS({"The Godfather"}, 'TopMovies'[Title])
+
+EVALUATE
+  TOPN(
+    101,
+    CALCULATETABLE(
+      DISTINCT('TopMovies'[Director]),
+      KEEPFILTERS(__DS0FilterTable)
+    ),
+    'TopMovies'[Director],
+    1
+  )
+
+ORDER BY
+  'TopMovies'[Director]
+```
+
+Two types of changes were made to this code to run it via `pbixr`:
+
+1. Escape double quotes
+
+2. Remove duplicate define statements.
+
+The query was run from R, returning a list of results related to 'The Godfather'.
+
+
+```r
+traceQuery <- paste0(
+"DEFINE ",
+"VAR __DS0FilterTable = ",
+"  TREATAS({\\\"\\\"The Godfather\\\"\\\"}, 'TopMovies'[Title])",
+"",
+"EVALUATE",
+"  TOPN(",
+"    1002,",
+"    CALCULATETABLE(",
+"      DISTINCT('TopMovies'[Poster]),",
+"      KEEPFILTERS(__DS0FilterTable)",
+"    ),",
+"    'TopMovies'[Poster],",
+"    1",
+"  )",
+"",
+"ORDER BY",
+"  'TopMovies'[Poster]",
+"",
+"EVALUATE",
+"  SUMMARIZECOLUMNS(",
+"    __DS0FilterTable,",
+"    \\\"\\\"SumRank\\\"\\\", IGNORE(CALCULATE(SUM('TopMovies'[Rank])))",
+"  )",
+"",
+"EVALUATE",
+"  TOPN(",
+"    101,",
+"    CALCULATETABLE(",
+"      SUMMARIZE('TopMovies', 'TopMovies'[Released], 'TopMovies'[Rated]),",
+"      KEEPFILTERS(__DS0FilterTable)",
+"    ),",
+"    'TopMovies'[Released],",
+"    1,",
+"    'TopMovies'[Rated],",
+"    1",
+"  )",
+"",
+"ORDER BY",
+"  'TopMovies'[Released], 'TopMovies'[Rated]",
+"",
+"EVALUATE",
+"  SUMMARIZECOLUMNS(",
+"    __DS0FilterTable,",
+"    \\\"\\\"SumIMDBRating_Star\\\"\\\", IGNORE(CALCULATE(SUM('TopMovies'[IMDBRating_Star])))",
+"  )",
+"",
+"EVALUATE",
+"  SUMMARIZECOLUMNS(",
+"    __DS0FilterTable,",
+"    \\\"\\\"SumimdbVotes\\\"\\\", IGNORE(CALCULATE(SUM('TopMovies'[imdbVotes]))),",
+"    \\\"\\\"SumRuntime\\\"\\\", IGNORE(CALCULATE(SUM('TopMovies'[Runtime])))",
+"  )",
+"",
+"EVALUATE",
+"  SUMMARIZECOLUMNS(",
+"    __DS0FilterTable,",
+"    \\\"\\\"SumMetascore_Star\\\"\\\", IGNORE(CALCULATE(SUM('TopMovies'[Metascore_Star])))",
+"  )",
+"",
+"EVALUATE",
+"  TOPN(",
+"    101,",
+"    CALCULATETABLE(",
+"      SUMMARIZE('TopMovies', 'TopMovies'[Title], 'TopMovies'[Rank]),",
+"      KEEPFILTERS(__DS0FilterTable)",
+"    ),",
+"    'TopMovies'[Rank],",
+"    1,",
+"    'TopMovies'[Title],",
+"    1",
+"  )",
+"",
+"ORDER BY",
+"  'TopMovies'[Rank], 'TopMovies'[Title]",
+"",
+"EVALUATE",
+"  TOPN(",
+"    1002,",
+"    CALCULATETABLE(",
+"      DISTINCT('TopMovies'[Plot]),",
+"      KEEPFILTERS(__DS0FilterTable)",
+"    ),",
+"    'TopMovies'[Plot],",
+"    1",
+"  )",
+"",
+"ORDER BY",
+"  'TopMovies'[Plot]",
+"",
+"EVALUATE",
+"  TOPN(",
+"    101,",
+"    CALCULATETABLE(",
+"      DISTINCT('TopMovies'[Director]),",
+"      KEEPFILTERS(__DS0FilterTable)",
+"    ),",
+"    'TopMovies'[Director],",
+"    1",
+"  )",
+"",
+"ORDER BY",
+"  'TopMovies'[Director]"
+)
+# Query the analysis service
+getTrace <- f_query_datamodel(traceQuery, connection_db)
+# Show the list of results
+getTrace
+#> [[1]]
+#>                                                                                                                                 TopMovies.Poster.
+#> 1 https://images-na.ssl-images-amazon.com/images/M/MV5BNTc0ZDk1YWItZDZiNi00NTdmLWE0MDctNTVhYTRhMDBmZjNjXkEyXkFqcGdeQXVyMjUzOTY1NTc@._V1_SX300.jpg
+#> 
+#> [[2]]
+#>   X.SumRank.
+#> 1          2
+#> 
+#> [[3]]
+#>     TopMovies.Released.
+#> 1 24-Mar-72 12:00:00 AM
+#>   TopMovies.Rated.
+#> 1                R
+#> 
+#> [[4]]
+#>   X.SumIMDBRating_Star.
+#> 1                   4.6
+#> 
+#> [[5]]
+#>   X.SumimdbVotes.
+#> 1         1186027
+#>   X.SumRuntime.
+#> 1           175
+#> 
+#> [[6]]
+#>   X.SumMetascore_Star.
+#> 1                    5
+#> 
+#> [[7]]
+#>   TopMovies.Title.
+#> 1    The Godfather
+#>   TopMovies.Rank.
+#> 1               2
+#> 
+#> [[8]]
+#>                                                                                                       TopMovies.Plot.
+#> 1 The aging patriarch of an organized crime dynasty transfers control of his clandestine empire to his reluctant son.
+#> 
+#> [[9]]
+#>    TopMovies.Director.
+#> 1 Francis Ford Coppola
+```
+
+### What queries produce visualization data?
+
+A trace was also used to identify queries underpinning visualisation data. After clicking on the 'Grouping, Cond Form & others' report, the 'FlightRecorderCurrent.trc' trace was opened in 'SQL Server Profiler' (the location of the trace was identified with the query below).
+
+
+```r
+queryTraces <- paste0("select * from `$SYSTEM.DISCOVER_TRACES")
+getTraces <- f_query_datamodel(queryTraces, connection_db)
+getTraces
+```
+
+All queries were exported from the trace (just like the previous example), and the block with relevant queries was identified.
+
+
+```r
+queryViz <- paste(
+"DEFINE",
+"  VAR __ApplyFilterSQDS0 = ",
+"    TOPN(",
+"      5,",
+"      SUMMARIZECOLUMNS('Genre'[Genre], \\\"\\\"Avg_Runtime\\\"\\\", 'TopMovies'[Avg Runtime]),",
+"      [Avg_Runtime],",
+"      0",
+"    )",
+"",
+"  VAR __DS0Core = ",
+"    SUMMARIZECOLUMNS(",
+"      ROLLUPADDISSUBTOTAL('Genre'[Genre], \\\"\\\"IsGrandTotalRowTotal\\\"\\\"),",
+"      __ApplyFilterSQDS0,",
+"      \\\"\\\"MinRank\\\"\\\", CALCULATE(MIN('TopMovies'[Rank])),",
+"      \\\"\\\"Avg_Rating\\\"\\\", 'TopMovies'[Avg Rating],",
+"      \\\"\\\"Avg_Runtime\\\"\\\", 'TopMovies'[Avg Runtime]",
+"    )",
+"",
+"  VAR __DS0CoreNoInstanceFiltersNoTotals = ",
+"    FILTER(KEEPFILTERS(__DS0Core), [IsGrandTotalRowTotal] = FALSE)",
+"",
+"EVALUATE",
+"  TOPN(502, __DS0Core, [IsGrandTotalRowTotal], 0, [MinRank], 1, 'Genre'[Genre], 1)",
+"",
+"ORDER BY",
+"  [IsGrandTotalRowTotal] DESC, [MinRank], 'Genre'[Genre]"
+)
+getViz <- f_query_datamodel(queryViz, connection_db)
+colnames(getViz) <- trimws(gsub("[.]", " ", gsub("X[.]"," ",
+colnames(getViz))))
+showViz <- getViz %>%
+  arrange(IsGrandTotalRowTotal, desc(MinRank))
+kable(showViz)
+```
+
+
+
+|Genre Genre |IsGrandTotalRowTotal | MinRank| Avg_Rating| Avg_Runtime|
+|:-----------|:--------------------|-------:|----------:|-----------:|
+|Sport       |False                |     121|   8.220000|    134.8000|
+|Music       |False                |      45|   8.500000|    136.0000|
+|Western     |False                |       9|   8.483333|    148.3333|
+|Biography   |False                |       6|   8.276000|    147.1200|
+|History     |False                |       6|   8.285000|    162.8000|
+|            |True                 |       6|   8.293878|    150.2653|
+
+### How were the data linked in the sample?
+
+The model underpinning the data was identified with several queries.
 
 
 ```r
 # Get relationships
-sql_relationships <- paste0("select FromTableID, FromColumnID, ToTableID,", " ToColumnID  from $SYSTEM.TMSCHEMA_RELATIONSHIPS")
+sql_relationships <- paste0("select FromTableID, FromColumnID, ToTableID,",
+" ToColumnID  from `$SYSTEM.TMSCHEMA_RELATIONSHIPS")
 get_relationships <- f_query_datamodel(sql_relationships, connection_db)
 
 # Get names of columns
-sql_columns <- "select * from $SYSTEM.TMSCHEMA_COLUMNS"
-get_columns <- f_query_datamodel(sql_columns, connection_db) %>% mutate(ColumnName = ifelse(nchar(as.character(ExplicitName)) == 
-    0, as.character(InferredName), as.character(ExplicitName))) %>% select(ColumnID = ID, 
-    ColumnName)
+sql_columns <- "select * from `$SYSTEM.TMSCHEMA_COLUMNS"
+get_columns <- f_query_datamodel(sql_columns, connection_db) %>%
+  mutate(ColumnName = ifelse(nchar(as.character(ExplicitName)) == 0,
+  as.character(InferredName), as.character(ExplicitName))) %>%
+   select(ColumnID = ID, ColumnName)
 
 # Get names of tables
-sql_table <- "select * from $SYSTEM.TMSCHEMA_TABLES"
-get_tables <- f_query_datamodel(sql_table, connection_db) %>% select(TableID = ID, 
-    TableName = Name)
+sql_table <- "select * from `$SYSTEM.TMSCHEMA_TABLES"
+get_tables <- f_query_datamodel(sql_table, connection_db) %>%
+  select(TableID = ID, TableName = Name)
 
 # Merge things together
-get_relationship_names <- get_relationships %>% merge(get_tables, by.x = "FromTableID", 
-    by.y = "TableID") %>% rename(FromTable = TableName) %>% merge(get_tables, by.x = "ToTableID", 
-    by.y = "TableID") %>% rename(ToTable = TableName) %>% merge(get_columns, by.x = "FromColumnID", 
-    by.y = "ColumnID") %>% rename(FromColumn = ColumnName) %>% merge(get_columns, 
-    by.x = "ToColumnID", by.y = "ColumnID") %>% rename(ToColumn = ColumnName) %>% 
-    select(FromTable, ToTable, FromColumn, ToColumn)
+get_relationship_names <- get_relationships %>%
+  merge(get_tables, by.x = "FromTableID", by.y = "TableID") %>%
+  rename(FromTable = TableName) %>%
+  merge(get_tables, by.x = "ToTableID", by.y = "TableID") %>%
+  rename(ToTable = TableName) %>%
+  merge(get_columns, by.x = "FromColumnID", by.y = "ColumnID") %>%
+  rename(FromColumn = ColumnName) %>%
+  merge(get_columns, by.x = "ToColumnID", by.y = "ColumnID") %>%
+  rename(ToColumn = ColumnName) %>%
+  select(FromTable, ToTable, FromColumn, ToColumn)
 
-# Make things all characters drop table with long name. Doing this just for
-# display purposes here.
-get_relationship_names <- get_relationship_names[-5, ] %>% mutate(FromTable = as.character(FromTable)) %>% 
-    mutate(ToTable = as.character(ToTable))
+# Make things all characters
+# drop table with long name. Doing this just for display purposes here.
+get_relationship_names <- get_relationship_names[-5, ] %>%
+  mutate(FromTable = as.character(FromTable)) %>%
+  mutate(ToTable = as.character(ToTable))
 
 # Plot the results with igraph
 c_list <- list()
 for (i in 1:nrow(get_relationship_names)) {
-    c_list[[i]] <- get_relationship_names[i, 1:2]
+  c_list[[i]] <- get_relationship_names[i, 1:2]
 }
 ed <- as.character(unlist(c_list))
 # Use igraph, ggraph, ggplo2 to show preliminary example of data model
-g1 <- igraph::graph(edges = ed, directed = F)
-ggraph::ggraph(g1, layout = "stress") + ggraph::geom_edge_link() + ggraph::geom_node_point(size = 2, 
-    col = "red") + ggraph::geom_node_text(ggplot2::aes(label = name)) + ggplot2::theme(panel.background = ggplot2::element_blank())
+g1 <- igraph::graph(edges=ed, directed=F)
+ggraph::ggraph(g1, layout = "stress") +
+  ggraph::geom_edge_link() +
+  ggraph::geom_node_point(size = 2, col = "red") +
+  ggraph::geom_node_text(ggplot2::aes(label = name)) +
+  ggplot2::theme(panel.background = ggplot2::element_blank())
 ```
 
 ![](zzpublic_tableLinks-1.png)
 
-### What did one of the tables in the sample look like?
+### What data were in the sample?
+
+A DAX query was used to extract all data from the 'Genre Bridge' table.
 
 
 ```r
-query_topmovies <- "evaluate TopMovies"
-get_data_topmovies <- f_query_datamodel(query_topmovies, connection_db)
+# Use single quotes because table name has a white space
+query_GenreBridge <- "evaluate 'Genre Bridge'"
+get_data_GenreBridge <- f_query_datamodel(query_GenreBridge, connection_db)
 # Display some results
-knitr::kable(get_data_topmovies[1:3, 1:3])
+knitr::kable(get_data_GenreBridge[1:5,])
 ```
 
 
 
-| TopMovies.Rank.|TopMovies.Title.                               | TopMovies.Year.|
-|---------------:|:----------------------------------------------|---------------:|
-|               1|The Shawshank Redemption                       |            1994|
-|               5|12 Angry Men                                   |            1957|
-|              12|Star Wars: Episode V - The Empire Strikes Back |            1980|
+|Genre.Bridge.Title.      |Genre.Bridge.Genre. |
+|:------------------------|:-------------------|
+|The Shawshank Redemption |Drama               |
+|The Godfather            |Drama               |
+|The Godfather: Part II   |Drama               |
+|The Dark Knight          |Drama               |
+|12 Angry Men             |Drama               |
+
+A DAX query was used to extract the first five rows of data for each table.
+
+
+```r
+# Build a query by loop through table names and get the first five rows
+# Put table names inside single quotes in case
+# a white space occurs in the name
+createQueriesPt1 <- list()
+for (i in seq_along(1:nrow(get_tables))) {
+  createQueriesPt1[[i]] <- paste0("evaluate TOPNSKIP(5, 0, '",
+  get_tables$TableName[i], "')")
+}
+createQueriesPt2 <- paste0(unlist(createQueriesPt1), collapse = " ")
+get_data_AllTablesAllData <- f_query_datamodel(createQueriesPt2, connection_db)
+# Display some results
+# For display purposes, I am going to get the first 5 columns of each
+# I am only going to display the second table
+exampleAllTableResult <- lapply(get_data_AllTablesAllData, function(x) {
+  colLength <- ifelse(ncol(x) > 5, 5, ncol(x))
+  x[,1:colLength]
+  }
+)[[2]]
+kable(exampleAllTableResult)
+```
+
+
+
+| TopMovies.Rank.|TopMovies.Title.                               | TopMovies.Year.|TopMovies.Actors.                                                  |TopMovies.Awards.                                         |
+|---------------:|:----------------------------------------------|---------------:|:------------------------------------------------------------------|:---------------------------------------------------------|
+|               1|The Shawshank Redemption                       |            1994|Tim Robbins, Morgan Freeman, Bob Gunton, William Sadler            |Nominated for 7 Oscars. Another 19 wins & 30 nominations. |
+|               5|12 Angry Men                                   |            1957|Martin Balsam, John Fiedler, Lee J. Cobb, E.G. Marshall            |Nominated for 3 Oscars. Another 16 wins & 8 nominations.  |
+|              12|Star Wars: Episode V - The Empire Strikes Back |            1980|Mark Hamill, Harrison Ford, Carrie Fisher, Billy Dee Williams      |Won 1 Oscar. Another 19 wins & 18 nominations.            |
+|              13|Forrest Gump                                   |            1994|Tom Hanks, Rebecca Williams, Sally Field, Michael Conner Humphreys |Won 6 Oscars. Another 39 wins & 65 nominations.           |
+|              16|One Flew Over the Cuckoo's Nest                |            1975|Michael Berryman, Peter Brocco, Dean R. Brooks, Alonzo Brown       |Won 5 Oscars. Another 30 wins & 13 nominations.           |
+
+An MDX query was used to get the first five movie objects.
+
+
+```r
+query_getTop5Movies <- paste0("select top 5 [MEMBER_NAME] from ",
+  "`$System.MDSCHEMA_MEMBERS where [CUBE_NAME]='Model' and ",
+  "[LEVEL_UNIQUE_NAME]='[TopMovies].[Title].[Title]'"
+  )
+get_data_getTop5Movies <- f_query_datamodel(query_getTop5Movies, connection_db)
+# Display some results
+knitr::kable(get_data_getTop5Movies)
+```
+
+
+
+|MEMBER_NAME              |
+|:------------------------|
+|The Shawshank Redemption |
+|The Godfather            |
+|The Godfather: Part II   |
+|The Dark Knight          |
+|12 Angry Men             |
 
 # Modification
 
@@ -561,18 +1063,20 @@ The sample was unzipped with `f_unzip_pbix` and `f_clean_under_the_hood` was use
 
 
 ```r
-# Create a temporary, modified sample File
-path_file_sample_mod <- file.path(temp_dir, "sample_modified.pbix")
+# Create a temporary, modified sample
+# File
+path_file_sample_mod     <- file.path(temp_dir, "sample_modified.pbix")
 if (file.exists(path_file_sample_mod)) {
-    file.remove(path_file_sample_mod)
+  file.remove(path_file_sample_mod)
 }
 # Directory
 dir_file_sample_mod <- file.path(temp_dir, "sample_modified")
 if (file.exists(dir_file_sample_mod)) {
-    unlink(dir_file_sample_mod, recursive = TRUE)
+  unlink(dir_file_sample_mod, recursive = TRUE)
 }
 
-f_clean_under_the_hood(path_file_sample, dir_file_sample_mod, path_file_sample_mod)
+f_clean_under_the_hood(path_file_sample, dir_file_sample_mod,
+path_file_sample_mod)
 unlink(dir_file_sample_mod, recursive = TRUE)
 
 size_ori <- prettyNum(file.info(path_file_sample)$size, big.mark = ",")
@@ -580,6 +1084,5 @@ size_mod <- prettyNum(file.info(path_file_sample_mod)$size, big.mark = ",")
 ```
 
 With 'DataModel', the sample was 2,196,745 bytes. Without 'DataModel', the sample was 701,993 bytes.
-
 
 Have fun!

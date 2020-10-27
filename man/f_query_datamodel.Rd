@@ -4,10 +4,10 @@
 \alias{f_query_datamodel}
 \title{Query 'DataModel' of a '.pbix'}
 \usage{
-f_query_datamodel(sql_query, connection_string)
+f_query_datamodel(queryPowerBI, connection_string)
 }
 \arguments{
-\item{sql_query}{SQL query.}
+\item{queryPowerBI}{Query of 'DataModel' (e.g. 'DAX', 'MDX').}
 
 \item{connection_string}{Connection to 'DataModel' intiated in
 'Analysis Services'. Please note: (1) '.pbix' must be open in 'Power BI'
@@ -15,7 +15,10 @@ to connect to 'DataModel' and (2) the identifier and port used in the
 connection change each time a '.pbix' is opened with 'Power BI'.}
 }
 \value{
-Result from a query of 'DataModel'.
+Result from a query of 'DataModel'. For one table, a data.frame
+is returned. For many tables, a list is returned. For an error, perhaps
+due to incorrect 'DAX' or 'MDX' or incorrect connection, a list of 1
+equal to NULL.
 }
 \description{
 A query of 'DataModel' of a '.pbix' currently open in
@@ -66,11 +69,64 @@ correct_port <- as.numeric(connections_open$ports)
 # Construct the connection
 connection_db <- paste0("Provider=MSOLAP.8;Data Source=localhost:",
                         correct_port, ";MDX Compatibility=1")
-# Construct the Data Analysis Expressions query
-sql_measures <- paste0("select MEASURE_NAME, EXPRESSION, MEASUREGROUP_NAME",
-                      " from $SYSTEM.MDSCHEMA_MEASURES")
-# Run the function
-get_dax <- f_query_datamodel(sql_measures, connection_db)
+
+# Example 1
+# No need to change the syntax
+queryPowerBI <- "evaluate TopMovies"
+getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+str(getQueryPowerBIData)
+
+# Example 2
+# Escape dollar sign so that it can run via PowerShell
+queryPowerBI <- paste0("select MEASURE_NAME, EXPRESSION, MEASUREGROUP_NAME ",
+                    "from `$SYSTEM.MDSCHEMA_MEASURES")
+getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+str(getQueryPowerBIData)
+
+# Example 3
+# Escape double quotes so that it can run via PowerShell
+queryPowerBI <- paste0("evaluate(summarizecolumns('TopMovies'[Rank],",
+                    "'TopMovies'[Title],\\\\\\"\\\\\\"Value\\\\\\"\\\\\\",",
+                    "TopMovies[Avg Metascore]))")
+getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+str(getQueryPowerBIData)
+
+# Example 4
+# Return results from multiple EVALUATE.
+# Remember to put white spaces after statements like DEFINE and EVALUATE
+# the code runs
+queryPowerBI <- paste0(
+  "DEFINE ",
+  "VAR test_average = CALCULATE(AVERAGE('TopMovies'[imdbRating])) ",
+  "VAR test_median = CALCULATE(MEDIAN('TopMovies'[imdbRating])) ",
+  "EVALUATE ",
+  "  ROW( ",
+  "    \\\\\\"\\\\\\"MinRuntime\\\\\\"\\\\\\", CALCULATE(MIN('TopMovies'[Runtime])),",
+  "    \\\\\\"\\\\\\"MaxRuntime\\\\\\"\\\\\\", CALCULATE(MAX('TopMovies'[Runtime])),",
+  "    \\\\\\"\\\\\\"average\\\\\\"\\\\\\", test_average) ",
+  "EVALUATE ",
+  "  ROW(",
+  "    \\\\\\"\\\\\\"MinRuntime\\\\\\"\\\\\\", CALCULATE(MIN('TopMovies'[Runtime])),",
+  "    \\\\\\"\\\\\\"MaxRuntime\\\\\\"\\\\\\", CALCULATE(MAX('TopMovies'[Runtime])),",
+  "    \\\\\\"\\\\\\"median\\\\\\"\\\\\\", test_median)"
+)
+getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+str(getQueryPowerBIData[[1]])
+str(getQueryPowerBIData[[2]])
+
+# Example 5
+# Use single quotes when white space occurs in table name
+# Note that single quotation marks don't have to be escaped for
+# 'PowerShell'.
+queryPowerBI <- "evaluate 'Genre Bridge'"
+getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+str(getQueryPowerBIData)
+
+# Example 6
+# Statement that won't work.
+queryPowerBI <- "hello, world"
+getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+getQueryPowerBIData
   }
 }
 \author{

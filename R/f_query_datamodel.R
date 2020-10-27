@@ -4,12 +4,15 @@
 #' via 'PowerShell'. Results are written to a temporary file, which is (1)
 #' read into R and (2) deleted.
 #' @author Don Diproto
-#' @param sql_query SQL query.
+#' @param queryPowerBI Query of 'DataModel' (e.g. 'DAX', 'MDX').
 #' @param connection_string Connection to 'DataModel' intiated in
 #' 'Analysis Services'. Please note: (1) '.pbix' must be open in 'Power BI'
 #' to connect to 'DataModel' and (2) the identifier and port used in the
 #' connection change each time a '.pbix' is opened with 'Power BI'.
-#' @return Result from a query of 'DataModel'.
+#' @return Result from a query of 'DataModel'. For one table, a data.frame
+#' is returned. For many tables, a list is returned. For an error, perhaps
+#' due to incorrect 'DAX' or 'MDX' or incorrect connection, a list of 1
+#' equal to NULL.
 #' @import dplyr
 #' @export
 #' @note 'Power BI' and 'PowerShell' are required.
@@ -53,29 +56,135 @@
 #' # Construct the connection
 #' connection_db <- paste0("Provider=MSOLAP.8;Data Source=localhost:",
 #'                         correct_port, ";MDX Compatibility=1")
-#' # Construct the Data Analysis Expressions query
-#' sql_measures <- paste0("select MEASURE_NAME, EXPRESSION, MEASUREGROUP_NAME",
-#'                       " from $SYSTEM.MDSCHEMA_MEASURES")
-#' # Run the function
-#' get_dax <- f_query_datamodel(sql_measures, connection_db)
+#'
+#' # Example 1
+#' # No need to change the syntax
+#' queryPowerBI <- "evaluate TopMovies"
+#' getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+#' str(getQueryPowerBIData)
+#'
+#' # Example 2
+#' # Escape dollar sign so that it can run via PowerShell
+#' queryPowerBI <- paste0("select MEASURE_NAME, EXPRESSION, MEASUREGROUP_NAME ",
+#'                     "from `$SYSTEM.MDSCHEMA_MEASURES")
+#' getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+#' str(getQueryPowerBIData)
+#'
+#' # Example 3
+#' # Escape double quotes so that it can run via PowerShell
+#' queryPowerBI <- paste0("evaluate(summarizecolumns('TopMovies'[Rank],",
+#'                     "'TopMovies'[Title],\\\\\\"\\\\\\"Value\\\\\\"\\\\\\",",
+#'                     "TopMovies[Avg Metascore]))")
+#' getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+#' str(getQueryPowerBIData)
+#'
+#' # Example 4
+#' # Return results from multiple EVALUATE.
+#' # Remember to put white spaces after statements like DEFINE and EVALUATE
+#' # the code runs
+#' queryPowerBI <- paste0(
+#'   "DEFINE ",
+#'   "VAR test_average = CALCULATE(AVERAGE('TopMovies'[imdbRating])) ",
+#'   "VAR test_median = CALCULATE(MEDIAN('TopMovies'[imdbRating])) ",
+#'   "EVALUATE ",
+#'   "  ROW( ",
+#'   "    \\\\\\"\\\\\\"MinRuntime\\\\\\"\\\\\\", CALCULATE(MIN('TopMovies'[Runtime])),",
+#'   "    \\\\\\"\\\\\\"MaxRuntime\\\\\\"\\\\\\", CALCULATE(MAX('TopMovies'[Runtime])),",
+#'   "    \\\\\\"\\\\\\"average\\\\\\"\\\\\\", test_average) ",
+#'   "EVALUATE ",
+#'   "  ROW(",
+#'   "    \\\\\\"\\\\\\"MinRuntime\\\\\\"\\\\\\", CALCULATE(MIN('TopMovies'[Runtime])),",
+#'   "    \\\\\\"\\\\\\"MaxRuntime\\\\\\"\\\\\\", CALCULATE(MAX('TopMovies'[Runtime])),",
+#'   "    \\\\\\"\\\\\\"median\\\\\\"\\\\\\", test_median)"
+#' )
+#' getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+#' str(getQueryPowerBIData[[1]])
+#' str(getQueryPowerBIData[[2]])
+#'
+#' # Example 5
+#' # Use single quotes when white space occurs in table name
+#' # Note that single quotation marks don't have to be escaped for
+#' # 'PowerShell'.
+#' queryPowerBI <- "evaluate 'Genre Bridge'"
+#' getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+#' str(getQueryPowerBIData)
+#'
+#' # Example 6
+#' # Statement that won't work.
+#' queryPowerBI <- "hello, world"
+#' getQueryPowerBIData <- f_query_datamodel(queryPowerBI, connection_db)
+#' getQueryPowerBIData
 #'   }
-f_query_datamodel <- function(sql_query, connection_string) {
-  # The query is exchanged with 'Analysis Services' via 'PowerShell' -----------
-  temp_ps_file <- gsub("\\\\", "/", paste0(tempfile(), ".csv"))
-  command <- paste0("function query_db {param([string] $connectionString, ",
-  "[string] $sqlCommand);$connection = New-Object System.Data.OleDb.",
-  "OleDbConnection $connectionString;$command = New-Object System.Data.OleDb."
-  , "OleDbCommand $sqlCommand, $connection;$connection.Open();$adapter = ",
-  "New-Object System.Data.OleDb.OleDbDataAdapter $command;$dataset = ",
-  "New-Object System.Data.DataSet;[void] $adapter.Fill($dataSet);$connection.",
-  "Close();$dataSet.Tables[0];};$output = query_db -sqlCommand '", sql_query,
-  "' -connectionString '", connection_string, "' ; $output | Export-Csv -Path ",
-  temp_ps_file, " -NoTypeInformation")
-  system(paste0('powershell "', command, '"'))
+f_query_datamodel <- function(queryPowerBI, connection_string) {
+  statusOptionFancyQuotes <- getOption("useFancyQuotes")
 
-  # Read and delete temporary file ---------------------------------------------
-  read_output <- read.csv(temp_ps_file)
-  file.remove(temp_ps_file)
+  if (statusOptionFancyQuotes == FALSE) {
+    options(useFancyQuotes = TRUE)
+  }
 
-  return(read_output)
+  sqlQuery <- dQuote(queryPowerBI)
+
+  command <- paste0(
+    "try {",
+    "function query_db {param([string] $connectionString, [string] $sqlCommand);",
+    "$connection = New-Object System.Data.OleDb.OleDbConnection $connectionString;",
+    "$command = New-Object System.Data.OleDb.OleDbCommand $sqlCommand, $connection;",
+    "$connection.Open();",
+    "$adapter = New-Object System.Data.OleDb.OleDbDataAdapter $command;",
+    "$dataset = New-Object System.Data.DataSet;",
+    "[void] $adapter.Fill($dataSet);",
+    "$connection.Close();",
+    "$queryTables = $dataSet.Tables;",
+    "$tableCount = $queryTables.Count;",
+    "$dirTempFile = @();",
+    "foreach ($table in $queryTables) {",
+    "    $filename = [System.IO.Path]::GetTempFileName(); ",
+    "    $dirTempFile += $filename; ",
+    "    $table | Export-Csv -Path $filename -NoTypeInformation;",
+    "    };",
+    "$outarray = @();",
+    "foreach ($item in $dirTempFile)",
+    "    {",
+    "        $outarray += New-Object PsObject -property @{",
+    "        'file' = [string]$item",
+    "        }",
+    "    }; ",
+    "$dirTempParent = [System.IO.Path]::GetTempFileName(); ",
+    "$outarray | Export-Csv -Path $dirTempParent -NoTypeInformation;",
+    "Write-Host $dirTempParent;",
+    "};",
+    "$output = query_db -sqlCommand ",
+    sqlQuery," -connectionString '",
+    connection_string, "';",
+    "}",
+    "catch {Write-Host 'ERROR'};"
+  )
+  pathOfTempFile <- system(paste0('powershell "', command, '"'), intern = TRUE)
+
+  if (statusOptionFancyQuotes == FALSE) {
+    options(useFancyQuotes = FALSE)
+  }
+
+  pathFileTest <- pathOfTempFile == "ERROR"
+  if (!pathFileTest == TRUE) {
+    getTempFileLocations <- read.csv(pathOfTempFile, stringsAsFactors = FALSE)
+    getTempFileData <- vector("list", length = nrow(getTempFileLocations))
+    nTablesReturned <- nrow(getTempFileLocations)
+    for (getTempFileData_i in seq_along(1:nTablesReturned)) {
+      identifyInputTempFile_i <- getTempFileLocations[[getTempFileData_i, 1]]
+      getInputTempFile_i <- read.csv(identifyInputTempFile_i,
+                                     stringsAsFactors = FALSE)
+      getTempFileData[[getTempFileData_i]] <- getInputTempFile_i
+      file.remove(identifyInputTempFile_i)
+    }
+    file.remove(pathOfTempFile)
+
+    nReturnOneTableOnly <- 1
+    if (nTablesReturned == nReturnOneTableOnly) {
+      getTempFileData <- getTempFileData[[nReturnOneTableOnly]]
+    }
+    return(getTempFileData)
+  } else {
+    return(list(NULL))
+  }
 }
